@@ -1,0 +1,60 @@
+[project]
+name = "ccf-gpt"
+version = "1.0.0"
+description = "CyberCIA Forge GPT — autonomous ReAct pentesting & DFIR assistant for Kali Linux"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "CyberCIA Forge" }]
+keywords = ["pentest", "kali", "llm", "react-agent", "forensics", "security"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Console",
+  "Intended Audience :: Information Technology",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Security",
+  "Topic :: System :: Systems Administration",
+]
+dependencies = [
+  "typer[all]>=0.12.0",
+  "rich>=13.7.0",
+  "litellm>=1.52.0",
+  "platformdirs>=4.2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "ruff>=0.4.0",
+  "mypy>=1.10",
+]
+
+[project.scripts]
+ccf-gpt = "ccf_gpt.cli:app"
+
+[project.urls]
+Homepage = "https://github.com/cybercia/ccf-gpt"
+Issues = "https://github.com/cybercia/ccf-gpt/issues"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["ccf_gpt"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
