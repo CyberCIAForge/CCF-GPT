@@ -48,7 +48,7 @@ ccf-gpt config set-scope 192.168.1.0/24 example.com
 # ccf-gpt config clear-scope             # re-lock
 
 # 3a. Single-shot autonomous run
-ccf-gpt "Scan 192.168.1.50 for open web ports, then fuzz directories if HTTP is open"
+ccf-gpt run "Scan 192.168.1.50 for open web ports, then fuzz directories if HTTP is open"
 
 # 3b. Interactive REPL (persistent memory per engagement)
 ccf-gpt chat

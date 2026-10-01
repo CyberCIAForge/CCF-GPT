@@ -18,8 +18,7 @@ console = Console()
 app = typer.Typer(
     name="ccf-gpt",
     help="CyberCIA Forge GPT — autonomous Kali pentesting assistant (ReAct loop).",
-    no_args_is_help=False,
-    invoke_without_command=True,
+    no_args_is_help=True,
 )
 config_app = typer.Typer(help="Manage model, API keys, scope, and runtime defaults.")
 app.add_typer(config_app, name="config")
@@ -31,42 +30,19 @@ def _mask(v: str) -> str:
     return (v[:4] + "…" + v[-3:]) if len(v) > 8 else "****"
 
 
-# -- single-shot / default --------------------------------------------------
+# -- root callback (options only, NO positional args) ---------------------------
+# NOTE: a root-level `prompt` argument was removed on purpose. Click parses
+# group arguments before dispatching subcommands, so `ccf-gpt config ...`
+# was misread as prompt="config" + unknown command. Single-shot runs go
+# through `ccf-gpt run "<objective>"`.
 
 @app.callback()
 def main(
-    ctx: typer.Context,
-    prompt: Optional[str] = typer.Argument(None, help="Natural-language objective, e.g. \"Scan 192.168.1.50 for open web ports\""),
-    model: Optional[str] = typer.Option(None, "--model", "-m", help="Override configured model for this run."),
-    engagement: str = typer.Option("default", "--engagement", "-e", help="Engagement name for memory isolation."),
-    max_iterations: Optional[int] = typer.Option(None, "--max-iterations", help="Override ReAct step budget."),
-    timeout: Optional[int] = typer.Option(None, "--timeout", help="Per-tool timeout seconds."),
     version: bool = typer.Option(False, "--version", help="Show version and exit."),
 ) -> None:
     if version:
         console.print(f"ccf-gpt [bold]{__version__}[/bold]")
         raise typer.Exit()
-    if ctx.invoked_subcommand is not None:
-        return
-    if not prompt:
-        console.print(ctx.get_help())
-        console.print("\n[dim]Examples:[/dim]\n"
-                      "  ccf-gpt \"Scan 192.168.1.50 for open web ports\"\n"
-                      "  ccf-gpt chat\n"
-                      "  ccf-gpt config show")
-        raise typer.Exit()
-    cfg = load_config()
-    if model:
-        cfg["model"] = model
-    if max_iterations:
-        cfg["max_iterations"] = max_iterations
-    if timeout:
-        cfg["tool_timeout"] = timeout
-    mem = EngagementMemory(engagement=engagement)
-    try:
-        run_goal(prompt, cfg=cfg, mem=mem)
-    finally:
-        mem.close()
 
 
 @app.command()
@@ -76,7 +52,7 @@ def run(
     engagement: str = typer.Option("default", "--engagement", "-e"),
     max_iterations: Optional[int] = typer.Option(None, "--max-iterations"),
 ) -> None:
-    """Explicit single-shot alias: ``ccf-gpt run \"enumerate …\"``."""
+    """Single-shot autonomous run: ``ccf-gpt run \"enumerate …\"``."""
     cfg = load_config()
     if model:
         cfg["model"] = model
