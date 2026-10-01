@@ -45,15 +45,67 @@ def main(
         raise typer.Exit()
 
 
+def _with_session_scope(cfg: dict, scope: Optional[List[str]]) -> dict:
+    """Merge --scope entries for this session only (never persisted)."""
+    if scope:
+        extra = [s.strip() for s in scope if s and s.strip()]
+        if extra:
+            cfg = dict(cfg)
+            base = list(cfg.get("scope", []))
+            cfg["scope"] = base + [s for s in extra if s not in base]
+            console.print(f"[dim]Session scope (not saved): {', '.join(extra)}[/dim]")
+    return cfg
+
+
+@app.command()
+def setup(
+    key: Optional[str] = typer.Argument(None, help="API key to auto-configure (omit to be prompted securely)."),
+) -> None:
+    """Zero-fuss setup: paste any provider key — auto-detects, verifies live, sets a matching model."""
+    from .config import DEFAULT_MODEL_FOR_PROVIDER, detect_provider, verify_key
+
+    if not key:
+        key = typer.prompt("Paste your API key (Anthropic / OpenAI / Google)", hide_input=True)
+    key = (key or "").strip()
+    provider = detect_provider(key)
+    if not provider:
+        console.print(
+            "[red]Couldn't recognize this key.[/red] Expected prefixes: "
+            "[cyan]sk-ant-[/cyan] (Anthropic), [cyan]sk-[/cyan]/[cyan]sk-proj-[/cyan] (OpenAI), "
+            "[cyan]AIza[/cyan] (Google)."
+        )
+        raise typer.Exit(1)
+    console.print(f"Detected provider: [bold green]{provider}[/bold green] — verifying live…")
+    ok, msg = verify_key(provider, key)
+    if not ok:
+        console.print(f"[red]Key check failed:[/red] {msg}")
+        raise typer.Exit(1)
+    console.print(f"[green]{msg}[/green]")
+    cfg = load_config()
+    cfg.setdefault("api_keys", {})[provider] = key
+    cfg["model"] = DEFAULT_MODEL_FOR_PROVIDER[provider]
+    save_config(cfg)
+    console.print(f"Saved key + model → [bold green]{cfg['model']}[/bold green] [dim]({config_path()})[/dim]")
+    if not cfg.get("scope"):
+        console.print(
+            "[yellow]Chatting works right away — no scope needed for Q&A.[/yellow]\n"
+            "Scans stay blocked until you authorize targets: [bold]ccf-gpt config set-scope 127.0.0.1[/bold] "
+            "(or pass [bold]--scope[/bold] per run)"
+        )
+    else:
+        console.print(f"Scope: [bold]{', '.join(cfg['scope'])}[/bold] — try: ccf-gpt run \"Scan <target> for open ports\"")
+
+
 @app.command()
 def run(
     goal: str = typer.Argument(..., help="Objective to execute autonomously."),
     model: Optional[str] = typer.Option(None, "--model", "-m"),
     engagement: str = typer.Option("default", "--engagement", "-e"),
     max_iterations: Optional[int] = typer.Option(None, "--max-iterations"),
+    scope: Optional[List[str]] = typer.Option(None, "--scope", "-s", help="Session-only scope (not saved)."),
 ) -> None:
-    """Single-shot autonomous run: ``ccf-gpt run \"enumerate …\"``."""
-    cfg = load_config()
+    """Single-shot autonomous run: ``ccf-gpt run "enumerate …"``."""
+    cfg = _with_session_scope(load_config(), scope)
     if model:
         cfg["model"] = model
     if max_iterations:
@@ -71,9 +123,10 @@ def run(
 def chat(
     engagement: str = typer.Option("default", "--engagement", "-e"),
     model: Optional[str] = typer.Option(None, "--model", "-m"),
+    scope: Optional[List[str]] = typer.Option(None, "--scope", "-s", help="Session-only scope (not saved). Q&A needs no scope."),
 ) -> None:
     """Interactive REPL chat mode with persistent engagement memory."""
-    cfg = load_config()
+    cfg = _with_session_scope(load_config(), scope)
     if model:
         cfg["model"] = model
     mem = EngagementMemory(engagement=engagement)
@@ -214,18 +267,48 @@ def config_set_model(model: str = typer.Argument(..., help="e.g. anthropic/claud
 
 @config_app.command("set-key")
 def config_set_key(
-    provider: str = typer.Argument(..., help="anthropic | openai | gemini"),
+    provider_or_key: str = typer.Argument(..., help="Provider (anthropic|openai|gemini) — or paste a raw API key to auto-detect, verify, and set a matching model."),
     key: Optional[str] = typer.Argument(None, help="API key (omit to be prompted securely)."),
 ) -> None:
-    """Store a provider API key (file chmod 600). Ollama needs no key."""
-    provider = provider.lower()
+    """Store a key. Bad keys (rejected live) are refused; offline warnings still save."""
+    from .config import DEFAULT_MODEL_FOR_PROVIDER, detect_provider, verify_key
+
+    first = (provider_or_key or "").strip()
+    cfg = load_config()
+
+    if key is None and detect_provider(first):
+        # `set-key <RAW-KEY>` → auto path, same as `setup`
+        provider = detect_provider(first)
+        ok, msg = verify_key(provider, first)
+        if not ok and "rejected" in msg:
+            console.print(f"[red]{msg}[/red]")
+            raise typer.Exit(1)
+        if not ok:
+            console.print(f"[yellow]Warning:[/yellow] {msg} — saving anyway.")
+        else:
+            console.print(f"[green]{msg}[/green]")
+        cfg.setdefault("api_keys", {})[provider] = first
+        cfg["model"] = DEFAULT_MODEL_FOR_PROVIDER[provider]
+        save_config(cfg)
+        console.print(f"Saved [bold]{provider}[/bold] key + model → [bold green]{cfg['model']}[/bold green]")
+        return
+
+    provider = first.lower()
     if provider not in ("anthropic", "openai", "gemini"):
-        console.print("[red]Provider must be one of: anthropic, openai, gemini (ollama needs no key).[/red]")
+        console.print("[red]Give a provider (anthropic|openai|gemini), or just paste a raw API key — it will be auto-detected. (ollama needs no key.)[/red]")
         raise typer.Exit(1)
     if not key:
         key = typer.prompt(f"Enter {provider} API key", hide_input=True)
-    cfg = load_config()
-    cfg.setdefault("api_keys", {})[provider] = key.strip()
+    key = (key or "").strip()
+    ok, msg = verify_key(provider, key)
+    if not ok and "rejected" in msg:
+        console.print(f"[red]{msg}[/red]")
+        raise typer.Exit(1)
+    if not ok:
+        console.print(f"[yellow]Warning:[/yellow] {msg} — saving anyway.")
+    else:
+        console.print(f"[green]{msg}[/green]")
+    cfg.setdefault("api_keys", {})[provider] = key
     save_config(cfg)
     console.print(f"Saved [bold]{provider}[/bold] key [dim]({config_path()}, mode 600)[/dim]")
 

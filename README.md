@@ -37,19 +37,19 @@ python -m pytest -q
 ## Quickstart
 
 ```bash
-# 1. Pick a model + key (or use local Ollama — no key needed)
-ccf-gpt config set-model anthropic/claude-3-5-sonnet-20240620
-ccf-gpt config set-key anthropic          # prompts securely; or export ANTHROPIC_API_KEY=…
-# openai / gemini analogous; local: ccf-gpt config set-model ollama/llama3
+# 1. One-command setup — paste any key, the rest is automatic
+ccf-gpt setup
+# detects provider (sk-ant- / sk- / AIza), verifies the key live against the
+# provider, saves it, and picks a matching model. Bad keys are refused.
 
-# 2. Lock scope FIRST (fail-closed: scans are refused until scope is set)
+# 2. Chat right away (Q&A needs no scope), or authorize scan targets:
 ccf-gpt config set-scope 192.168.1.0/24 example.com
+# one-off scope without saving: ccf-gpt run --scope 127.0.0.1 "Scan 127.0.0.1"
 # ccf-gpt config add-scope 10.10.10.50   # append
 # ccf-gpt config clear-scope             # re-lock
 
 # 3a. Single-shot autonomous run
 ccf-gpt run "Scan 192.168.1.50 for open web ports, then fuzz directories if HTTP is open"
-
 # 3b. Interactive REPL (persistent memory per engagement)
 ccf-gpt chat
 ccf-gpt chat --engagement client-acme --model openai/gpt-4o
@@ -60,6 +60,15 @@ ccf-gpt findings --target 192.168.1.50
 ```
 
 REPL slash commands: `/targets /assets [t] /vulns [t] /history /scope /model X /engagement NAME /help /exit`
+
+## Why scope?
+
+`ccf-gpt` is an *autonomous* agent that executes network scans on its own —
+running that against the wrong IP is potentially illegal. So scope is
+**fail-closed**: chatting and Q&A work with no scope at all, but the moment a
+tool targets a host, it must be inside your authorized scope or the run is
+refused. Set it once with `config set-scope`, or per run with `--scope`
+(which is never saved).
 
 ## ReAct loop in action
 

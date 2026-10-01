@@ -101,3 +101,67 @@ def provider_for_model(model: str) -> str:
     if low.startswith("ollama/"):
         return "ollama"
     return "unknown"
+
+
+# -- zero-fuss key setup: detect provider from the key itself --------------
+
+DEFAULT_MODEL_FOR_PROVIDER: dict[str, str] = {
+    "openai": "openai/gpt-4o-mini",
+    "anthropic": "anthropic/claude-3-5-haiku-20241022",
+    "gemini": "gemini/gemini-1.5-flash",
+}
+
+
+def detect_provider(key: str) -> str | None:
+    """Guess the provider from the key prefix. Returns None if unrecognized."""
+    k = (key or "").strip()
+    if k.startswith("sk-ant-"):
+        return "anthropic"
+    if k.startswith("AIza"):
+        return "gemini"
+    if k.startswith("sk-proj-") or k.startswith("sk-"):
+        return "openai"
+    return None
+
+
+def verify_key(provider: str, key: str, timeout: int = 15) -> tuple[bool, str]:
+    """Live-check a key against the provider (stdlib only, no extra deps).
+
+    Returns (ok, message). 401/403 means definitely-bad (do not save);
+    network errors mean unknown (caller may save with a warning).
+    """
+    import urllib.error
+    import urllib.request
+
+    key = (key or "").strip()
+    if not key:
+        return False, "empty key"
+    try:
+        if provider == "openai":
+            req = urllib.request.Request(
+                "https://api.openai.com/v1/models",
+                headers={"Authorization": f"Bearer {key}"},
+            )
+        elif provider == "anthropic":
+            req = urllib.request.Request(
+                "https://api.anthropic.com/v1/models",
+                headers={"x-api-key": key, "anthropic-version": "2023-06-01"},
+            )
+        elif provider == "gemini":
+            req = urllib.request.Request(
+                f"https://generativelanguage.googleapis.com/v1beta/models?key={key}",
+            )
+        else:
+            return False, f"unknown provider {provider!r}"
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            if resp.status == 200:
+                return True, f"key verified live with {provider}"
+            return False, f"{provider} returned unexpected HTTP {resp.status}"
+    except urllib.error.HTTPError as e:
+        if e.code in (401, 403):
+            return False, f"key rejected by {provider} (HTTP {e.code}): wrong or revoked — not saved"
+        return False, f"{provider} returned HTTP {e.code}: {e.reason}"
+    except urllib.error.URLError as e:
+        return False, f"network error reaching {provider}: {e.reason} (offline?)"
+    except Exception as e:
+        return False, f"verification failed: {e}"

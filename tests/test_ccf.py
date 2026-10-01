@@ -50,3 +50,19 @@ def test_memory(tmp_path):
     assert len(m.get_targets()) == 1
     assert len(m.get_vulnerabilities()) == 1
     m.close()
+
+
+def test_detect_provider():
+    from ccf_gpt.config import detect_provider
+    assert detect_provider("sk-ant-abc123") == "anthropic"
+    assert detect_provider("sk-proj-abc123") == "openai"
+    assert detect_provider("sk-abc123") == "openai"
+    assert detect_provider("AIzaSyAbC123") == "gemini"
+    assert detect_provider("garbage-key") is None
+    assert detect_provider("") is None
+
+
+def test_verify_key_rejects_empty():
+    from ccf_gpt.config import verify_key
+    ok, _ = verify_key("openai", "")
+    assert ok is False
