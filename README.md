@@ -15,16 +15,23 @@ human-in-the-loop guardrails.
 | Memory | `memory.py`: `~/.config/ccf-gpt/engagements.db` — targets, assets, creds, vulns, command audit log |
 | Guardrails | `guardrails.py`: fail-closed scope lock (CIDR/IP/domain) + risk-tier `[y/N]` confirmation, destructive-pattern blocks |
 | Multi-LLM | `llm.py` over `litellm`: `anthropic/*`, `openai/*`, `gemini/*`, `ollama/*` with retries |
+| Zero-fuss setup | `ccf-gpt setup`: paste any key → provider auto-detected, verified live, matching model set |
 
 ## Install (Kali Linux)
 
 ```bash
-sudo apt update && sudo apt install -y python3 python3-pip nmap gobuster ffuf sqlmap nuclei \
-  dirb wordlists  # nuclei optional via apt or go install
+sudo apt update && sudo apt install -y python3 python3-pip pipx git \
+  nmap gobuster ffuf sqlmap nuclei dirb wordlists
+# nuclei optional via apt or: go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
 
-git clone <this-repo> && cd ccf-gpt
-pip install -e .            # or: pipx install -e . / uv pip install -e .
+git clone https://github.com/CyberCIAForge/CCF-GPT.git
+cd CCF-GPT
+pipx install -e . && pipx ensurepath
 ```
+
+> Use `pipx` (or a venv), **not** `pip install --break-system-packages` — `litellm`
+> pulls newer shared libraries that conflict with Kali's pre-installed tools
+> (Faraday, mitmproxy, theHarvester…). Isolated install avoids that entirely.
 
 Verify:
 
@@ -39,36 +46,42 @@ python -m pytest -q
 ```bash
 # 1. One-command setup — paste any key, the rest is automatic
 ccf-gpt setup
-# detects provider (sk-ant- / sk- / AIza), verifies the key live against the
-# provider, saves it, and picks a matching model. Bad keys are refused.
+# Detects provider from the key (sk-ant- / sk- / sk-proj- / AIza...),
+# verifies it live, saves it (mode 600), picks a matching model.
+# Rejected keys are refused with the provider's reason. No key?
+# use local Ollama instead: ccf-gpt config set-model ollama/llama3
 
-# 2. Chat right away (Q&A needs no scope), or authorize scan targets:
+# 2. Chat immediately (Q&A needs no scope), or authorize scan targets:
 ccf-gpt config set-scope 192.168.1.0/24 example.com
-# one-off scope without saving: ccf-gpt run --scope 127.0.0.1 "Scan 127.0.0.1"
-# ccf-gpt config add-scope 10.10.10.50   # append
-# ccf-gpt config clear-scope             # re-lock
+# ccf-gpt config add-scope 10.10.10.50    # append without replacing
+# ccf-gpt config clear-scope              # re-lock (scans blocked again)
+# one-off scope for a single run, never saved:
+ccf-gpt run --scope 127.0.0.1 "Scan 127.0.0.1 for open ports"
 
 # 3a. Single-shot autonomous run
 ccf-gpt run "Scan 192.168.1.50 for open web ports, then fuzz directories if HTTP is open"
+ccf-gpt run --engagement client-acme --model openai/gpt-4o "Enumerate 10.10.10.50"
+
 # 3b. Interactive REPL (persistent memory per engagement)
 ccf-gpt chat
-ccf-gpt chat --engagement client-acme --model openai/gpt-4o
+ccf-gpt chat --engagement client-acme --scope 10.10.10.0/24
 
-# 4. Review state
+# 4. Review what the agent remembers
 ccf-gpt targets
 ccf-gpt findings --target 192.168.1.50
 ```
 
-REPL slash commands: `/targets /assets [t] /vulns [t] /history /scope /model X /engagement NAME /help /exit`
+REPL slash commands: `/targets` `/assets [t]` `/vulns [t]` `/history` `/scope`
+`/model X` `/engagement NAME` `/help` `/exit`
 
 ## Why scope?
 
 `ccf-gpt` is an *autonomous* agent that executes network scans on its own —
-running that against the wrong IP is potentially illegal. So scope is
-**fail-closed**: chatting and Q&A work with no scope at all, but the moment a
-tool targets a host, it must be inside your authorized scope or the run is
-refused. Set it once with `config set-scope`, or per run with `--scope`
-(which is never saved).
+pointing that at the wrong IP is potentially illegal. So scope is
+**fail-closed**: chatting, Q&A, and reasoning work with no scope at all, but the
+moment a tool targets a host, it must be inside your authorized scope or the run
+is refused with the exact command to authorize it. Authorize once with
+`config set-scope`, or per run with `--scope` (never saved).
 
 ## ReAct loop in action
 
@@ -90,26 +103,39 @@ Low-risk `run_gobuster`/`run_ffuf` auto-run; `run_nmap`/`run_nuclei` confirm;
 `run_sqlmap` is always HIGH risk and always confirms. Destructive patterns
 (`rm -rf /`, `;`, `||`, backticks…) are blocked outright.
 
+## Command reference
+
+| Command | Purpose |
+|---|---|
+| `ccf-gpt setup [KEY]` | Paste-a-key setup: detect → verify live → save → set model |
+| `ccf-gpt run "goal" [-m MODEL] [-e ENG] [--max-iterations N] [-s SCOPE...]` | Single-shot autonomous engagement |
+| `ccf-gpt chat [-e ENG] [-m MODEL] [-s SCOPE...]` | Interactive REPL with persistent memory |
+| `ccf-gpt targets [-e ENG]` | List remembered targets |
+| `ccf-gpt findings [-t TARGET] [-e ENG]` | Show vulns + assets |
+| `ccf-gpt config show` | Full config, keys masked |
+| `ccf-gpt config set-key [PROVIDER\|KEY] [KEY]` | Store key; raw key auto-detects + verifies; bad keys refused |
+| `ccf-gpt config set-model MODEL` | e.g. `openai/gpt-4o`, `anthropic/claude-3-5-sonnet-20240620`, `gemini/gemini-1.5-flash`, `ollama/llama3` |
+| `ccf-gpt config set-scope ...` / `add-scope ...` / `clear-scope` | Manage authorized targets |
+| `ccf-gpt config set-timeout SEC` / `set-max-iterations N` | Runtime tuning (30–3600s, 1–50 steps) |
+
 ## Configuration
 
-File: `~/.config/ccf-gpt/config.json` (mode 600), DB: `~/.config/ccf-gpt/engagements.db`.
-Env overrides: `CCF_GPT_MODEL`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`/`GOOGLE_API_KEY`.
+File: `~/.config/ccf-gpt/config.json` (mode 600). DB: `~/.config/ccf-gpt/engagements.db`.
+Env overrides (no file write): `CCF_GPT_MODEL`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`,
+`GEMINI_API_KEY`/`GOOGLE_API_KEY`. Defaults: temperature `0.2`, `max_iterations` 12,
+`tool_timeout` 300s, `max_output_chars` 12000, low-risk tools auto-approved.
 
-```bash
-ccf-gpt config show
-ccf-gpt config set-model openai/gpt-4o
-ccf-gpt config set-key openai
-ccf-gpt config set-timeout 600
-ccf-gpt config set-max-iterations 15
-```
+Light/small models work (`ollama/llama3.1:8b`, `openai/gpt-4o-mini`,
+`gemini/gemini-1.5-flash`) — expect weaker tool-call discipline than full-size
+models; keep goals simple and step budgets small.
 
 ## Project layout
 
 ```
-pyproject.toml
+pyproject.toml  README.md  LICENSE  .gitignore
 ccf_gpt/
-  __init__.py  cli.py  config.py  llm.py  agent.py
-  tools.py  parser.py  memory.py  guardrails.py  __main__.py
+  __init__.py  __main__.py  cli.py  config.py  llm.py  agent.py
+  tools.py  parser.py  memory.py  guardrails.py
 tests/test_ccf.py
 ```
 
@@ -123,9 +149,11 @@ Never test systems you don't own or have written permission to assess.
 
 | Symptom | Fix |
 |---|---|
-| `REFUSED: target … outside scope` | `ccf-gpt config set-scope <your-target>` |
+| `REFUSED: target … outside scope` | `ccf-gpt config set-scope <target>` or one-off `--scope <target>` |
+| `Incorrect API key` / key rejected at setup | Key is wrong/revoked — generate a fresh one, re-run `ccf-gpt setup` |
 | `Binary 'nmap' not found` | `sudo apt install -y nmap` (hint printed inline) |
-| `LLM call failed … 429` | waits + retries automatically; then check key/model (`config show`), or use `ollama/llama3` locally |
+| pip dependency conflicts (faraday/theharvester/…) | You installed into system Python — uninstall and use `pipx`/venv instead |
+| `LLM call failed … 429` | Retried automatically; then check key/model (`config show`), or use `ollama/llama3` locally |
 | `Timed out after Ns` | `ccf-gpt config set-timeout 600`; partial output is kept and summarized |
 | Ollama errors | `ollama pull llama3 && ollama serve`, then `set-model ollama/llama3` |
 
