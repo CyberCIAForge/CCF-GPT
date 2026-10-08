@@ -117,7 +117,8 @@ def detect_provider(key: str) -> str | None:
     k = (key or "").strip()
     if k.startswith("sk-ant-"):
         return "anthropic"
-    if k.startswith("AIza"):
+    if k.startswith("AIza") or k.startswith("AQ."):
+        # AIza... = classic Google AI Studio key; AQ.... = newer AI Studio format
         return "gemini"
     if k.startswith("sk-proj-") or k.startswith("sk-"):
         return "openai"

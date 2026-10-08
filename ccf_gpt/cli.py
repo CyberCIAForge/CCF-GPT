@@ -72,7 +72,7 @@ def setup(
         console.print(
             "[red]Couldn't recognize this key.[/red] Expected prefixes: "
             "[cyan]sk-ant-[/cyan] (Anthropic), [cyan]sk-[/cyan]/[cyan]sk-proj-[/cyan] (OpenAI), "
-            "[cyan]AIza[/cyan] (Google)."
+            "[cyan]AIza[/cyan]/[cyan]AQ.[/cyan] (Google)."
         )
         raise typer.Exit(1)
     console.print(f"Detected provider: [bold green]{provider}[/bold green] — verifying live…")

@@ -58,6 +58,7 @@ def test_detect_provider():
     assert detect_provider("sk-proj-abc123") == "openai"
     assert detect_provider("sk-abc123") == "openai"
     assert detect_provider("AIzaSyAbC123") == "gemini"
+    assert detect_provider("AQ.Ab8RN6Jxyz") == "gemini"
     assert detect_provider("garbage-key") is None
     assert detect_provider("") is None
 
