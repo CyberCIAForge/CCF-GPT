@@ -1,5 +1,10 @@
 # ccf-gpt — CyberCIA Forge GPT
 
+> **Authorized security testing only.** This is a defensive-security research
+> tool for testing systems you own or have explicit written permission to
+> assess. Unauthorized access to computer systems is illegal in most
+> jurisdictions. See [Safety & legal](#safety--legal) and [`SECURITY.md`](SECURITY.md).
+
 Autonomous **ReAct (Thought → Tool → Observation)** pentesting & DFIR assistant for Kali Linux.
 Unlike single-command guessers (shell-gpt), `ccf-gpt` chains native Kali tools, parses massive
 outputs into compact signal, remembers engagement state in SQLite, and enforces scope +
@@ -159,9 +164,15 @@ tests/test_ccf.py
 
 ## Safety & legal
 
-Authorized testing only. The scope lock is fail-closed and high-risk tools
-require explicit confirmation, but **you** are responsible for authorization.
-Never test systems you don't own or have written permission to assess.
+**Authorized testing only.** Use this tool solely on systems you own or have
+explicit written permission to assess (lab VMs, CTF boxes, contracted
+engagements with a signed scope). Unauthorized access is a crime in most
+jurisdictions.
+
+The tool helps you stay inside authorization — fail-closed scope lock,
+per-step confirmation for high-risk actions, secret masking — but **you**
+are responsible for having authorization in the first place. See
+[`SECURITY.md`](SECURITY.md) for the full policy.
 
 ## Troubleshooting
 
