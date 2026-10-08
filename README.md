@@ -9,9 +9,10 @@ human-in-the-loop guardrails.
 
 | Capability | How |
 |---|---|
-| ReAct loop | `agent.py`: Thought → Tool Call → Observation, up to N steps, auto-chains (nmap → gobuster/ffuf → nuclei → sqlmap) |
-| Kali tools | `tools.py`: `run_nmap`, `run_gobuster`, `run_ffuf`, `run_sqlmap`, `run_nuclei` (+ `record_finding`) via safe `subprocess` (no `shell=True`), timeouts, missing-binary hints |
-| Smart parser | `parser.py`: strips ANSI/progress bars, truncates to budget, extracts ports, services, paths, CVEs |
+| ReAct loop | `agent.py`: Thought → Tool Call → Observation, up to N steps, chained per methodology phase |
+| Kali arsenal (26 tools) | `tools.py` data-driven registry: `nmap`, `masscan`, `gobuster`, `ffuf`, `feroxbuster`, `nikto`, `nuclei`, `sqlmap`, `whatweb`, `wafw00f`, `dig`, `whois`, `theharvester`, `amass`, `sublist3r`, `enum4linux`, `smbmap`, `snmpwalk`, `ldapsearch`, `searchsploit`, `hydra`, `john`, `msfvenom`, `netexec`, `tcpdump`, `lynis` — safe argv builders, timeouts, secret redaction, missing-binary hints (`ccf-gpt tools` lists all + install status) |
+| Methodology engine | `methodology.py`: recon → scan → enumerate → vuln → exploit → post → report; agent tracks phase via `set_phase`, playbook injected into every prompt |
+| Smart parser | `parser.py`: strips ANSI/progress bars, truncates to budget, extracts ports, services, paths, CVEs + generic signal lines for every tool |
 | Memory | `memory.py`: `~/.config/ccf-gpt/engagements.db` — targets, assets, creds, vulns, command audit log |
 | Guardrails | `guardrails.py`: fail-closed scope lock (CIDR/IP/domain) + risk-tier `[y/N]` confirmation, destructive-pattern blocks |
 | Multi-LLM | `llm.py` over `litellm`: `anthropic/*`, `openai/*`, `gemini/*`, `ollama/*` with retries |
@@ -73,7 +74,22 @@ ccf-gpt findings --target 192.168.1.50
 ```
 
 REPL slash commands: `/targets` `/assets [t]` `/vulns [t]` `/history` `/scope`
-`/model X` `/engagement NAME` `/help` `/exit`
+`/phase [NAME]` `/model X` `/engagement NAME` `/help` `/exit`
+
+## Methodology
+
+The agent works through ethical-hacking phases in order and tracks progress
+per engagement (see it in `config show` context via `/phase`):
+
+1. **recon** — passive only: `whois`, `dig`, `sublist3r`, `amass -passive`, `theharvester`
+2. **scan** — live hosts/ports/services: `nmap`, `masscan`, `whatweb`, `wafw00f`
+3. **enumerate** — squeeze every service: `gobuster`/`ffuf`/`feroxbuster`, `enum4linux`, `smbmap`, `snmpwalk`, `ldapsearch`, `nikto`
+4. **vuln** — map to CVEs, no exploitation: `nuclei`, `searchsploit`
+5. **exploit** — authorized only, each step confirmed: `sqlmap`, `hydra`, `msfvenom`, `netexec`, `john`
+6. **post** — document impact, minimal footprint
+7. **report** — severity-ranked findings + remediation
+
+Passwords/hashes are masked (`***`) in confirmations and the command log.
 
 ## Why scope?
 
@@ -112,6 +128,7 @@ Low-risk `run_gobuster`/`run_ffuf` auto-run; `run_nmap`/`run_nuclei` confirm;
 | `ccf-gpt run "goal" [-m MODEL] [-e ENG] [--max-iterations N] [-s SCOPE...]` | Single-shot autonomous engagement |
 | `ccf-gpt chat [-e ENG] [-m MODEL] [-s SCOPE...]` | Interactive REPL with persistent memory |
 | `ccf-gpt targets [-e ENG]` | List remembered targets |
+| `ccf-gpt tools` | Arsenal inventory: all 26 tools, risk tiers, installed/missing |
 | `ccf-gpt findings [-t TARGET] [-e ENG]` | Show vulns + assets |
 | `ccf-gpt config show` | Full config, keys masked |
 | `ccf-gpt config set-key [PROVIDER\|KEY] [KEY]` | Store key; raw key auto-detects + verifies; bad keys refused |
