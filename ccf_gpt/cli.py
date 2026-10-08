@@ -258,7 +258,7 @@ def config_show() -> None:
 
 
 @config_app.command("set-model")
-def config_set_model(model: str = typer.Argument(..., help="e.g. anthropic/claude-3-5-sonnet-20240620, openai/gpt-4o, gemini/gemini-1.5-pro, ollama/llama3")) -> None:
+def config_set_model(model: str = typer.Argument(..., help="e.g. anthropic/claude-3-5-sonnet-20240620, openai/gpt-4o, gemini/gemini-2.0-flash, ollama/llama3")) -> None:
     cfg = load_config()
     cfg["model"] = model
     save_config(cfg)
