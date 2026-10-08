@@ -63,7 +63,8 @@ PHASES: list[dict] = [
             "Prefer the least intrusive proof (e.g. sqlmap --risk=1 before higher).",
             "Stop immediately on unexpected impact; record everything.",
         ],
-        "tools": ["run_sqlmap", "run_hydra", "run_msfvenom", "run_netexec", "run_john"],
+        "tools": ["run_sqlmap", "run_hydra", "run_msfvenom", "run_msfconsole",
+                  "run_bettercap", "run_netexec", "run_john"],
         "exit": "Have: confirmed findings with evidence, or documented failure. Then set_phase(post).",
     },
     {

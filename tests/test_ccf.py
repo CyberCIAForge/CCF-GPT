@@ -121,3 +121,46 @@ def test_phase_memory(tmp_path):
     assert m.get_phase() == "scan"
     assert "scan" in m.context_summary()
     m.close()
+
+
+def test_msfconsole_pro_and_rejections():
+    import shutil
+    from ccf_gpt.tools import SPECS
+    build = SPECS["run_msfconsole"].build
+    if shutil.which("msfconsole"):
+        argv = build({"target": "10.10.10.5", "module": "auxiliary/scanner/smb/smb_version",
+                      "options": {"THREADS": "10"}})
+        assert argv[:3] == ["msfconsole", "-q", "-x"]
+        assert "set RHOSTS 10.10.10.5" in argv[3] and argv[3].endswith("run; exit")
+        argv = build({"target": "10.10.10.5",
+                      "module": "exploit/windows/smb/ms17_010_eternalblue"})
+        assert "; check; " in argv[3]
+    for bad in [{"target": "t", "module": "post/windows/gather"},
+                {"target": "t", "module": "exploit/x; rm -rf /"},
+                {"target": "t", "module": "auxiliary/x",
+                 "options": {"RHOSTS": "1.1.1.1; evil"}},
+                {"target": "t", "module": "auxiliary/x", "payload": "x; rm"}]:
+        try:
+            build(bad)
+        except (ValueError, PermissionError, FileNotFoundError):
+            continue
+        raise AssertionError(f"msfconsole accepted: {bad}")
+
+
+def test_bettercap_allowlist():
+    import shutil
+    from ccf_gpt.tools import SPECS
+    build = SPECS["run_bettercap"].build
+    if shutil.which("bettercap"):
+        argv = build({"interface": "eth0", "commands": "net.probe on; net.show"})
+        assert argv[:4] == ["bettercap", "-iface", "eth0", "-eval"]
+        assert argv[4].endswith("; q")
+    for bad in [{"interface": "eth0", "commands": "exec rm -rf /"},
+                {"interface": "eth0; evil", "commands": "net.show"},
+                {"interface": "eth0", "commands": "net.show; sleep 9999"},
+                {"interface": "eth0", "commands": "net.show | tee /tmp/x"}]:
+        try:
+            build(bad)
+        except (ValueError, PermissionError, FileNotFoundError):
+            continue
+        raise AssertionError(f"bettercap accepted: {bad}")

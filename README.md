@@ -10,7 +10,7 @@ human-in-the-loop guardrails.
 | Capability | How |
 |---|---|
 | ReAct loop | `agent.py`: Thought → Tool Call → Observation, up to N steps, chained per methodology phase |
-| Kali arsenal (26 tools) | `tools.py` data-driven registry: `nmap`, `masscan`, `gobuster`, `ffuf`, `feroxbuster`, `nikto`, `nuclei`, `sqlmap`, `whatweb`, `wafw00f`, `dig`, `whois`, `theharvester`, `amass`, `sublist3r`, `enum4linux`, `smbmap`, `snmpwalk`, `ldapsearch`, `searchsploit`, `hydra`, `john`, `msfvenom`, `netexec`, `tcpdump`, `lynis` — safe argv builders, timeouts, secret redaction, missing-binary hints (`ccf-gpt tools` lists all + install status) |
+| Kali arsenal (28 tools) | `tools.py` data-driven registry: `nmap`, `masscan`, `gobuster`, `ffuf`, `feroxbuster`, `nikto`, `nuclei`, `sqlmap`, `whatweb`, `wafw00f`, `dig`, `whois`, `theharvester`, `amass`, `sublist3r`, `enum4linux`, `smbmap`, `snmpwalk`, `ldapsearch`, `searchsploit`, `hydra`, `john`, `msfvenom`, `netexec`, `tcpdump`, `lynis`, `msfconsole` (scripted), `bettercap` (batch) — safe argv builders, timeouts, secret redaction, missing-binary hints (`ccf-gpt tools` lists all + install status) |
 | Methodology engine | `methodology.py`: recon → scan → enumerate → vuln → exploit → post → report; agent tracks phase via `set_phase`, playbook injected into every prompt |
 | Smart parser | `parser.py`: strips ANSI/progress bars, truncates to budget, extracts ports, services, paths, CVEs + generic signal lines for every tool |
 | Memory | `memory.py`: `~/.config/ccf-gpt/engagements.db` — targets, assets, creds, vulns, command audit log |
@@ -85,7 +85,7 @@ per engagement (see it in `config show` context via `/phase`):
 2. **scan** — live hosts/ports/services: `nmap`, `masscan`, `whatweb`, `wafw00f`
 3. **enumerate** — squeeze every service: `gobuster`/`ffuf`/`feroxbuster`, `enum4linux`, `smbmap`, `snmpwalk`, `ldapsearch`, `nikto`
 4. **vuln** — map to CVEs, no exploitation: `nuclei`, `searchsploit`
-5. **exploit** — authorized only, each step confirmed: `sqlmap`, `hydra`, `msfvenom`, `netexec`, `john`
+5. **exploit** — authorized only, each step confirmed: `sqlmap`, `hydra`, `msfvenom`, `msfconsole` (auto-`check` first), `bettercap`, `netexec`, `john`
 6. **post** — document impact, minimal footprint
 7. **report** — severity-ranked findings + remediation
 

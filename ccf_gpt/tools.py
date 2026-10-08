@@ -46,6 +46,8 @@ INSTALL_HINTS = {
     "netexec": "sudo apt install -y netexec",
     "crackmapexec": "sudo apt install -y crackmapexec",
     "tcpdump": "sudo apt install -y tcpdump",
+    "msfconsole": "sudo apt install -y metasploit-framework",
+    "bettercap": "sudo apt install -y bettercap",
 }
 
 
@@ -491,6 +493,77 @@ def _b_tcpdump(a: dict) -> list[str]:
     return argv
 
 
+def _b_msfconsole(a: dict) -> list[str]:
+    """Scripted msfconsole: use <module>; set opts; [check;] run; exit. One argv element, no shell."""
+    mod = str(a.get("module") or "").strip().lower()
+    if not re.fullmatch(r"(exploit|auxiliary)/[a-z0-9_/]{1,120}", mod):
+        raise ValueError("module must look like exploit/... or auxiliary/... (post/payload-only use is blocked)")
+    target = _host(a.get("target"), "target")
+    opts = a.get("options") or {}
+    if not isinstance(opts, dict):
+        raise ValueError("options must be a mapping like {RHOSTS: ..., THREADS: ...}")
+    cmds = [f"use {mod}"]
+    seen = set()
+    for k, v in opts.items():
+        k2 = str(k).upper()
+        if not re.fullmatch(r"[A-Z_][A-Z0-9_]{0,29}", k2):
+            raise ValueError(f"Bad option name: {k!r}")
+        v2 = str(v)
+        if not re.fullmatch(r"[\w.\-/:]{1,200}", v2):
+            raise ValueError(f"Rejected option value for {k2} (allowed: letters/digits . - / : _)")
+        cmds.append(f"set {k2} {v2}")
+        seen.add(k2)
+    # Pro default: point the module at the in-scope target unless told otherwise.
+    if "RHOSTS" not in seen:
+        cmds.append(f"set RHOSTS {target}")
+    if "RHOST" not in seen:
+        cmds.append(f"set RHOST {target}")
+    payload = str(a.get("payload") or "").strip().lower()
+    if payload:
+        if not re.fullmatch(r"[a-z0-9_/]{1,120}", payload) or "/" not in payload:
+            raise ValueError(f"Bad payload: {payload!r}")
+        cmds.append(f"set PAYLOAD {payload}")
+    if mod.startswith("exploit/") and a.get("check_first", True):
+        cmds.append("check")
+    cmds += ["run", "exit"]
+    return [_resolve_binary(SPECS["run_msfconsole"]), "-q", "-x", "; ".join(cmds)]
+
+
+_BETTERCAP_WHITELIST = {
+    "net.probe", "net.show", "net.recon", "net.sniff", "arp.spoof", "dns.spoof",
+    "http.proxy", "https.proxy", "ticker", "events.show", "events.stream",
+    "wifi.recon", "caplets", "set", "sleep", "quit", "q", "exit", "help",
+}
+
+
+def _b_bettercap(a: dict) -> list[str]:
+    _require_root("bettercap")
+    iface = str(a.get("interface") or "eth0")
+    if not re.fullmatch(r"[a-zA-Z0-9._\-]{1,16}", iface):
+        raise ValueError(f"Bad interface: {iface!r}")
+    raw = str(a.get("commands") or "").strip()
+    if not raw:
+        raise ValueError("commands is required, e.g. 'net.probe on; net.show'")
+    if any(s in raw for s in ("`", "$(", "&&", "||", "|", ">", "<", "\n", "\r")):
+        raise ValueError("Rejected metacharacters in bettercap script")
+    stmts = [s.strip() for s in raw.split(";") if s.strip()]
+    if not stmts:
+        raise ValueError("Empty bettercap script")
+    cleaned: list[str] = []
+    for s in stmts:
+        head = s.split()[0].lower()
+        if head not in _BETTERCAP_WHITELIST:
+            raise ValueError(f"Blocked bettercap command: {head!r} (allowlist: {sorted(_BETTERCAP_WHITELIST)})")
+        m = re.fullmatch(r"sleep\s+(\d+)", s, re.IGNORECASE)
+        if m and int(m.group(1)) > 300:
+            raise ValueError("sleep capped at 300s per script")
+        cleaned.append(s)
+    if cleaned[-1].lower() not in ("quit", "q", "exit"):
+        cleaned.append("q")
+    return [_resolve_binary(SPECS["run_bettercap"]), "-iface", iface,
+            "-eval", "; ".join(cleaned)]
+
+
 # -- the registry -----------------------------------------------------------
 
 def _props(**kw: dict) -> dict:
@@ -609,6 +682,17 @@ _SPECS = [
                                count={"type": "integer", "description": "Packets 1-1000, default 20"},
                                filter={"type": "string", "description": "BPF filter, strictly validated"}),
              required=[], build=_b_tcpdump),
+    ToolSpec("run_msfconsole", "msfconsole", description="Scripted Metasploit: run scanner/exploit modules non-interactively (use/set/check/run). HIGH RISK — always confirms. RHOSTS auto-pointed at your in-scope target.", risk="high", target_arg="target", timeout=900,
+             properties=_props(target={"type": "string", "description": "In-scope target; auto-set as RHOSTS/RHOST unless overridden"},
+                               module={"type": "string", "description": "e.g. auxiliary/scanner/smb/smb_version or exploit/windows/smb/ms17_010_eternalblue"},
+                               options={"type": "object", "description": "Module options, e.g. {\"THREADS\": \"10\"}. Values: letters/digits . - / : _ only"},
+                               payload={"type": "string", "description": "Optional, e.g. windows/x64/meterpreter/reverse_tcp"},
+                               check_first={"type": "boolean", "description": "Run 'check' before exploits. Default true"}),
+             required=["target", "module"], build=_b_msfconsole),
+    ToolSpec("run_bettercap", "bettercap", description="MITM/network-attack framework in batch mode (net.probe/arp.spoof/dns.spoof/sniff...). HIGH RISK, needs root — always confirms. Only use against in-scope networks you own.", risk="high", target_arg="", timeout=600,
+             properties=_props(interface={"type": "string", "description": "e.g. eth0, wlan0"},
+                               commands={"type": "string", "description": "Semicolon script, e.g. 'net.probe on; net.show'. Allowlisted commands only; auto-quits at end"}),
+             required=["interface", "commands"], build=_b_bettercap),
 ]
 
 for _s in _SPECS:

@@ -47,6 +47,8 @@ TOOL_RISK: dict[str, str] = {
     "run_lynis": "low",
     "run_netexec": "medium",
     "run_tcpdump": "medium",
+    "run_msfconsole": "high",  # scripted exploits/scanners
+    "run_bettercap": "high",   # MITM / active network attacks
     "record_finding": "low",
     "set_phase": "low",
 }
