@@ -114,7 +114,7 @@ Low-risk `run_gobuster`/`run_ffuf` auto-run; `run_nmap`/`run_nuclei` confirm;
 | `ccf-gpt findings [-t TARGET] [-e ENG]` | Show vulns + assets |
 | `ccf-gpt config show` | Full config, keys masked |
 | `ccf-gpt config set-key [PROVIDER\|KEY] [KEY]` | Store key; raw key auto-detects + verifies; bad keys refused |
-| `ccf-gpt config set-model MODEL` | e.g. `openai/gpt-4o`, `anthropic/claude-3-5-sonnet-20240620`, `gemini/gemini-2.0-flash`, `ollama/llama3` |
+| `ccf-gpt config set-model MODEL` | e.g. `openai/gpt-4o`, `anthropic/claude-3-5-sonnet-20240620`, `gemini/gemini-3.8-flash`, `ollama/llama3` |
 | `ccf-gpt config set-scope ...` / `add-scope ...` / `clear-scope` | Manage authorized targets |
 | `ccf-gpt config set-timeout SEC` / `set-max-iterations N` | Runtime tuning (30–3600s, 1–50 steps) |
 
@@ -126,7 +126,7 @@ Env overrides (no file write): `CCF_GPT_MODEL`, `ANTHROPIC_API_KEY`, `OPENAI_API
 `tool_timeout` 300s, `max_output_chars` 12000, low-risk tools auto-approved.
 
 Light/small models work (`ollama/llama3.1:8b`, `openai/gpt-4o-mini`,
-`gemini/gemini-2.0-flash`) — expect weaker tool-call discipline than full-size
+`gemini/gemini-3.8-flash`) — expect weaker tool-call discipline than full-size
 models; keep goals simple and step budgets small.
 
 ## Project layout

@@ -108,7 +108,7 @@ def provider_for_model(model: str) -> str:
 DEFAULT_MODEL_FOR_PROVIDER: dict[str, str] = {
     "openai": "openai/gpt-4o-mini",
     "anthropic": "anthropic/claude-3-5-haiku-20241022",
-    "gemini": "gemini/gemini-2.0-flash",
+    "gemini": "gemini/gemini-3.8-flash",
 }
 
 
