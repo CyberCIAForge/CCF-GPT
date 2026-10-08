@@ -19,13 +19,36 @@ from rich.panel import Panel
 
 console = Console()
 
-# tool -> default risk tier
+# tool -> default risk tier (mirrors ToolSpec.risk in tools.py)
 TOOL_RISK: dict[str, str] = {
-    "run_nmap": "medium",      # network scanning — needs scope, confirm if aggressive
+    "run_nmap": "medium",
     "run_gobuster": "low",
     "run_ffuf": "low",
-    "run_nuclei": "medium",    # active vuln probing
-    "run_sqlmap": "high",      # intrusive, potentially destructive / state-changing
+    "run_nuclei": "medium",
+    "run_sqlmap": "high",
+    "run_masscan": "medium",
+    "run_nikto": "medium",
+    "run_whatweb": "low",
+    "run_wafw00f": "low",
+    "run_dig": "low",
+    "run_whois": "low",
+    "run_theharvester": "low",
+    "run_amass": "low",
+    "run_sublist3r": "low",
+    "run_enum4linux": "medium",
+    "run_smbmap": "medium",
+    "run_snmpwalk": "medium",
+    "run_ldapsearch": "medium",
+    "run_searchsploit": "low",
+    "run_hydra": "high",       # brute-force: lockout risk
+    "run_john": "low",         # offline cracking
+    "run_feroxbuster": "low",
+    "run_msfvenom": "high",    # payload generation
+    "run_lynis": "low",
+    "run_netexec": "medium",
+    "run_tcpdump": "medium",
+    "record_finding": "low",
+    "set_phase": "low",
 }
 
 # Argument patterns that escalate a tool to HIGH risk regardless of default.

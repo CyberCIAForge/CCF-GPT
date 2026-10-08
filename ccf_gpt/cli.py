@@ -184,6 +184,14 @@ def _handle_slash(user: str, mem: EngagementMemory, cfg: dict) -> bool:
         _print_rows("Command history", ["tool", "command", "exit_code"], rows)
     elif cmd == "/scope":
         console.print(f"Scope: [bold]{cfg.get('scope') or '(empty — scans blocked)'}[/bold]")
+    elif cmd == "/phase":
+        from .methodology import PHASE_IDS, get_phase
+        if args and args[0] in PHASE_IDS:
+            mem.set_phase(args[0])
+            info = get_phase(args[0])
+            console.print(f"Phase → [bold]{args[0]}: {info['name']}[/bold] — {info['goal']}")
+        else:
+            console.print(f"Phase: [bold]{mem.get_phase()}[/bold] [dim](valid: {', '.join(PHASE_IDS)} — /phase NAME to switch)[/dim]")
     elif cmd == "/model" and args:
         cfg["model"] = args[0]
         save_config(cfg)
@@ -209,6 +217,27 @@ def _print_rows(title: str, cols: list[str], rows: list[dict]) -> None:
 
 
 # -- state inspection -------------------------------------------------------
+
+@app.command()
+def tools() -> None:
+    """List the Kali arsenal: every tool, its risk tier, and install status."""
+    import shutil
+
+    from .tools import SPECS
+
+    t = Table(title=f"ccf-gpt arsenal ({len(SPECS)} tools)")
+    t.add_column("tool", style="cyan")
+    t.add_column("risk")
+    t.add_column("installed")
+    t.add_column("does what", overflow="fold", max_width=70)
+    for spec in SPECS.values():
+        ok = bool(shutil.which(spec.binary) or any(shutil.which(b) for b in spec.binaries))
+        t.add_row(spec.name, spec.risk,
+                  "[green]yes[/green]" if ok else "[red]no[/red]",
+                  spec.description[:90])
+    console.print(t)
+    console.print("[dim]Missing binaries show an apt install hint when the agent calls them.[/dim]")
+
 
 @app.command()
 def targets(engagement: str = typer.Option("default", "--engagement", "-e")) -> None:
@@ -366,7 +395,7 @@ def main() -> None:
     """
     import sys
 
-    known = {"run", "chat", "targets", "findings", "config", "setup"}
+    known = {"run", "chat", "targets", "findings", "config", "setup", "tools"}
     if len(sys.argv) > 1 and sys.argv[1] not in known and not sys.argv[1].startswith("-"):
         sys.argv.insert(1, "run")
     app()

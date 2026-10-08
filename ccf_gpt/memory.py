@@ -77,6 +77,10 @@ CREATE TABLE IF NOT EXISTS command_log(
   summary TEXT DEFAULT '',
   created_at REAL NOT NULL
 );
+CREATE TABLE IF NOT EXISTS state(
+  engagement_id INTEGER PRIMARY KEY,
+  phase TEXT DEFAULT 'recon'
+);
 """
 
 
@@ -109,6 +113,24 @@ class EngagementMemory:
     def use_engagement(self, name: str) -> None:
         self.engagement = name
         self._engagement_id = self._ensure_engagement(name)
+
+    # -- methodology phase ------------------------------------------------
+    def get_phase(self) -> str:
+        row = self._conn.execute(
+            "SELECT phase FROM state WHERE engagement_id=?", (self._engagement_id,)
+        ).fetchone()
+        if row and row["phase"]:
+            return str(row["phase"])
+        self.set_phase("recon")
+        return "recon"
+
+    def set_phase(self, phase: str) -> None:
+        self._conn.execute(
+            "INSERT INTO state(engagement_id, phase) VALUES(?,?)"
+            " ON CONFLICT(engagement_id) DO UPDATE SET phase=excluded.phase",
+            (self._engagement_id, phase),
+        )
+        self._conn.commit()
 
     def list_engagements(self) -> list[dict[str, Any]]:
         rows = self._conn.execute(
@@ -215,7 +237,7 @@ class EngagementMemory:
         targets = self.get_targets()
         assets = self.get_assets()
         vulns = self.get_vulnerabilities()
-        lines = [f"Engagement: {self.engagement}"]
+        lines = [f"Engagement: {self.engagement} (methodology phase: {self.get_phase()})"]
         lines.append("Targets: " + (", ".join(t["value"] for t in targets) or "(none yet)"))
         if assets:
             lines.append("Known assets:")

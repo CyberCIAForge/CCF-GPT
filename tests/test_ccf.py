@@ -67,3 +67,57 @@ def test_verify_key_rejects_empty():
     from ccf_gpt.config import verify_key
     ok, _ = verify_key("openai", "")
     assert ok is False
+
+
+def test_registry_integrity():
+    import re
+    from ccf_gpt.tools import EXECUTORS, SPECS, TOOL_SCHEMAS
+    assert len(SPECS) >= 20, f"expected a full arsenal, got {len(SPECS)}"
+    for name, spec in SPECS.items():
+        assert spec.name == name
+        assert spec.description, name
+        assert spec.risk in ("low", "medium", "high"), name
+        assert set(spec.required) <= set(spec.properties), name
+        assert name in EXECUTORS, name
+    names = [s["function"]["name"] for s in TOOL_SCHEMAS]
+    assert "record_finding" in names
+    for name in SPECS:
+        assert name in names, name
+
+
+def test_builders_reject_shell_metachars():
+    from ccf_gpt.tools import SPECS
+    bad = {"extra_args": "; rm -rf /", "filter": "port 80; evil", "ports": "80 || 1"}
+    for name, spec in SPECS.items():
+        args = {k: "x" for k in spec.required}
+        args.update({"target": "127.0.0.1", "url": "http://127.0.0.1/",
+                     "domain": "example.com", "query": "apache",
+                     "hashfile": "/tmp/x", "payload": "generic/shell_reverse_tcp",
+                     "lhost": "127.0.0.1", "base_dn": "dc=x"})
+        args.update(bad)
+        try:
+            argv = spec.build(args)
+        except (ValueError, PermissionError, FileNotFoundError):
+            continue  # validation/root errors are the safe outcome
+        joined = " ".join(argv)
+        assert ";" not in joined and "`" not in joined and "$(" not in joined, (name, joined)
+
+
+def test_methodology_phases_reference_real_tools():
+    from ccf_gpt.methodology import PHASES, PHASE_IDS, playbook_text
+    from ccf_gpt.tools import SPECS
+    assert PHASE_IDS[0] == "recon" and PHASE_IDS[-1] == "report"
+    for p in PHASES:
+        for tool in p["tools"]:
+            assert tool in SPECS or tool in ("record_finding",), (p["id"], tool)
+    assert "recon" in playbook_text("scan")
+
+
+def test_phase_memory(tmp_path):
+    from ccf_gpt.memory import EngagementMemory
+    m = EngagementMemory(path=tmp_path / "p.db", engagement="ph")
+    assert m.get_phase() == "recon"
+    m.set_phase("scan")
+    assert m.get_phase() == "scan"
+    assert "scan" in m.context_summary()
+    m.close()

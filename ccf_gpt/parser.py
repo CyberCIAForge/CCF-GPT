@@ -134,6 +134,31 @@ def parse_sqlmap(text: str) -> dict:
     return out
 
 
+SIGNAL_KEYWORDS = re.compile(
+    r"(vulnerab|exploit|weak|default (cred|pass)|anonymous (login|access)|"
+    r"critical|remote code|privilege|bypass|pwned|cracked|FOUND|SUCCESS)",
+    re.IGNORECASE,
+)
+
+
+def extract_signals(text: str, limit: int = 25) -> list[str]:
+    """Generic high-signal lines for tools without a dedicated parser."""
+    clean = strip_noise(text)
+    out: list[str] = []
+    cves = sorted({c.upper() for c in CVE_RE.findall(clean)})
+    if cves:
+        out.append("CVEs: " + ", ".join(cves[:10]))
+    for line in clean.splitlines():
+        line = line.strip()
+        if len(line) < 8 or len(line) > 300:
+            continue
+        if SIGNAL_KEYWORDS.search(line) and line not in out:
+            out.append(line)
+        if len(out) >= limit:
+            break
+    return out
+
+
 def summarize(tool: str, raw: str, budget: int = 6000) -> str:
     """Build the compact observation string fed back to the LLM + memory."""
     clean = clean_output(raw, budget=budget * 2)
@@ -151,7 +176,7 @@ def summarize(tool: str, raw: str, budget: int = 6000) -> str:
             if d["cves"]:
                 lines.append("CVEs: " + ", ".join(d["cves"][:15]))
             header = "\n".join(lines)
-        elif tool in ("run_gobuster", "run_ffuf"):
+        elif tool in ("run_gobuster", "run_ffuf", "run_feroxbuster"):
             d = parse_gobuster_ffuf(clean)
             lines = [f"paths_found={d['count']}"]
             for h in d["hits"][:50]:
@@ -169,7 +194,8 @@ def summarize(tool: str, raw: str, budget: int = 6000) -> str:
             d = parse_sqlmap(clean)
             header = f"injectable={d['injectable']} dbms={d['dbms']} databases={d['databases']}"
         else:
-            header = ""
+            sig = extract_signals(clean)
+            header = "signals:\n" + "\n".join(f"  {s}" for s in sig) if sig else ""
     except Exception:
         header = ""
     body = truncate(clean, budget)
