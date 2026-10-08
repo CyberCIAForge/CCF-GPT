@@ -35,7 +35,7 @@ dev = [
 ]
 
 [project.scripts]
-ccf-gpt = "ccf_gpt.cli:app"
+ccf-gpt = "ccf_gpt.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/cybercia/ccf-gpt"

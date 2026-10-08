@@ -58,8 +58,9 @@ ccf-gpt config set-scope 192.168.1.0/24 example.com
 # one-off scope for a single run, never saved:
 ccf-gpt run --scope 127.0.0.1 "Scan 127.0.0.1 for open ports"
 
-# 3a. Single-shot autonomous run
-ccf-gpt run "Scan 192.168.1.50 for open web ports, then fuzz directories if HTTP is open"
+# 3a. Single-shot autonomous run (bare prompt works like shell-gpt)
+ccf-gpt "Scan 192.168.1.50 for open web ports, then fuzz directories if HTTP is open"
+# equivalent explicit form: ccf-gpt run "Scan ..."
 ccf-gpt run --engagement client-acme --model openai/gpt-4o "Enumerate 10.10.10.50"
 
 # 3b. Interactive REPL (persistent memory per engagement)

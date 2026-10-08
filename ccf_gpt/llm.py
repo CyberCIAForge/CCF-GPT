@@ -69,14 +69,19 @@ def complete_with_tools(
     _ensure_key(model, cfg)
     temperature = float(cfg.get("temperature", 0.2))
 
+    # Gemini 3+ deprecates top-level sampling params (warns on every call);
+    # move guidance into the system prompt instead by simply omitting it.
+    omit_temperature = model.lower().startswith("gemini/gemini-3")
+
     last_err: Exception | None = None
     for attempt in range(1, max_retries + 1):
         try:
             kwargs: dict[str, Any] = {
                 "model": model,
                 "messages": messages,
-                "temperature": temperature,
             }
+            if not omit_temperature:
+                kwargs["temperature"] = temperature
             if tools:
                 kwargs["tools"] = tools
                 kwargs["tool_choice"] = "auto"

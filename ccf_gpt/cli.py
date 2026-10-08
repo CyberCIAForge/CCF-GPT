@@ -357,5 +357,20 @@ def config_set_max_iterations(n: int = typer.Argument(..., help="ReAct step budg
     console.print(f"max_iterations → [bold]{cfg['max_iterations']}[/bold]")
 
 
-if __name__ == "__main__":
+def main() -> None:
+    """Console entry point: routes bare prompts to `run`, like shell-gpt.
+
+    `ccf-gpt "scan 192.168.1.50"` behaves as `ccf-gpt run "scan 192.168.1.50"`.
+    Known subcommands/flags pass through untouched. Done at argv level
+    (before typer/click parsing) so subcommand dispatch can never break.
+    """
+    import sys
+
+    known = {"run", "chat", "targets", "findings", "config", "setup"}
+    if len(sys.argv) > 1 and sys.argv[1] not in known and not sys.argv[1].startswith("-"):
+        sys.argv.insert(1, "run")
     app()
+
+
+if __name__ == "__main__":
+    main()
